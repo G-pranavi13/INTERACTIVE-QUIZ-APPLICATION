@@ -1,0 +1,495 @@
+  <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Interactive Quiz Application</title>
+  <style>
+    :root{
+      --bg-gradient: linear-gradient(120deg, #f4f4f4 0%, #e3f2fd 100%);
+      --card: #fff;
+      --accent: #1976d2;
+      --accent-2: #388e3c;
+      --text: #222;
+      --muted: #888;
+      --correct: #388e3c;
+      --wrong: #d32f2f;
+      --shadow: 0 4px 12px rgba(0,0,0,.08);
+      --radius: 12px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", sans-serif;
+      color:var(--text);
+      background: var(--bg-gradient);
+      display:flex; align-items:center; justify-content:center; padding:24px;
+      min-height:100vh;
+    }
+    .app{width:min(920px, 100%);}
+    .card{
+      background: var(--card);
+      border:1px solid #eee;
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .header{
+      padding:32px 28px 16px; text-align:center;
+    }
+    .title{
+      font-weight:800; font-size: clamp(28px, 4vw, 40px);
+      letter-spacing:.5px;
+      color: var(--accent);
+    }
+    .subtitle{color:var(--muted); margin-top:8px; font-size:clamp(14px,2vw,16px)}
+
+    .hidden{ display:none !important }
+
+    .content{padding:0 28px 28px}
+    .actions{display:flex; justify-content:center; gap:14px; margin:22px 0 8px}
+    button{
+      border:0; padding:14px 18px; border-radius:16px; cursor:pointer; font-weight:700;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #fff;
+      transition:.2s transform ease, .2s box-shadow ease, .2s opacity ease, .2s background ease;
+      box-shadow: 0 2px 8px rgba(25, 118, 210, 0.12);
+    }
+    button:hover{ transform: translateY(-2px); }
+    button:disabled{ opacity:.6; cursor:not-allowed; transform:none }
+    .ghost{ background:transparent; color:var(--accent); border:1px solid #ccc; box-shadow:none }
+    .grid{ display:grid; gap:18px }
+    /* Quiz UI */
+    .quiz{
+      display:grid; gap:18px; padding:8px 0 0;
+    }
+    .topbar{ display:grid; gap:10px }
+    .meta{ display:flex; justify-content:space-between; align-items:center; color:var(--muted); font-size:14px }
+    .progress{ height:10px; background:#e0e0e0; border-radius:999px; overflow:hidden; }
+    .progress > span{ display:block; height:100%; width:0%; background:linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .35s ease }
+
+    .question{
+      font-size: clamp(18px, 2.5vw, 22px); font-weight:700; line-height:1.35;
+      background: #f8f8f8;
+      border:1px solid #eee;
+      padding:16px; border-radius:16px;
+    }
+
+    .options{ display:grid; gap:12px }
+    .opt{ 
+      text-align:left; width:100%; padding:10px 16px 10px 8px; border-radius:14px; background:#f5f5f5;
+      border:1px solid #eee; color:var(--text); font-weight:600; box-shadow:none;
+      display: flex; align-items: center; gap:12px;
+      min-height:42px;
+      cursor:pointer;
+    }
+    .opt input[type="radio"] {
+      accent-color: var(--accent);
+      margin-right: 6px;
+      cursor:pointer;
+    }
+    .opt:hover{ background:#e3f2fd }
+    .opt.selected { background:#bbdefb; border-color:var(--accent); }
+    .opt.correct{ background: #c8e6c9; border-color: var(--correct); color:var(--correct); }
+    .opt.wrong{ background: #ffcdd2; border-color: var(--wrong); color:var(--wrong); }
+
+    .feedback{
+      min-height: 44px; border-radius:14px; padding:12px 14px; font-size:14px; line-height:1.5; font-weight:600;
+      border:1px solid #eee; background:#fafafa; color:var(--muted);
+    }
+    .feedback.good{ color:var(--correct); border-color: var(--correct); background: #e8f5e9; }
+    .feedback.bad{ color:var(--wrong); border-color: var(--wrong); background: #ffebee; }
+
+    .footer{ display:flex; justify-content:space-between; align-items:center; gap:12px }
+    .spacer{ flex:1 }
+
+    /* Results */
+    .results{
+      display:grid; gap:16px; text-align:center; padding:8px 0 0
+    }
+    .score{
+      font-size: clamp(40px, 6vw, 64px); font-weight:900; letter-spacing:-1px
+    }
+    .pill{
+      display:inline-flex; gap:8px; align-items:center; padding:8px 12px; border-radius:999px;
+      border:1px solid #eee; color:var(--muted);
+      background: #fafafa
+    }
+    .breakdown{ display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap:12px }
+    .bd-card{ padding:12px; border-radius:14px; background: #fafafa; border:1px solid #eee }
+
+    .credits{ text-align:center; color:var(--muted); font-size:12px; margin-top:12px }
+
+    @media (max-width:560px){ .actions{ flex-wrap:wrap } }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="card">
+      <header class="header" id="header">
+        <h1 class="title">Interactive Quiz Application</h1>
+        <p class="subtitle">Test your skills with instant feedback, smooth progress, and a polished scorecard.</p>
+        <div class="actions" id="start-screen">
+          <button id="startBtn" aria-label="Start Quiz">Start Quiz →</button>
+          <button class="ghost" id="howBtn" aria-label="How it works">How it works</button>
+        </div>
+        <div class="actions hidden" id="how-panel">
+          <p class="subtitle" style="margin:0 auto; max-width:680px">You'll get <b>15 questions</b>. Click an answer to see immediately if you're right, along with a short explanation. Use <b>Next</b> to move on. Your score and a category breakdown appear at the end. You can retake the quiz—questions are shuffled each time.</p>
+        </div>
+      </header>
+
+      <div class="content">
+        <!-- QUIZ -->
+        <section id="quiz" class="quiz hidden" aria-live="polite">
+          <div class="topbar">
+            <div class="meta">
+              <span id="qMeta">Question 1 of 15</span>
+              <span id="categoryTag" class="pill">Category: —</span>
+            </div>
+            <div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
+          </div>
+
+          <div class="question" id="questionText">Loading…</div>
+
+          <div class="options" id="options"></div>
+
+          <div class="feedback" id="feedback" role="status" aria-live="polite"></div>
+
+          <div class="footer">
+            <span class="pill" id="scorePill">Score: 0</span>
+            <span class="spacer"></span>
+            <button id="prevBtn" class="ghost" disabled>Previous</button>
+            <button id="nextBtn" disabled>Next</button>
+          </div>
+        </section>
+
+        <!-- RESULTS -->
+        <section id="results" class="results hidden">
+          <div class="pill" id="summaryPill">Nice run!</div>
+          <div class="score" id="finalScore">0 / 15</div>
+          <div class="breakdown" id="breakdown"></div>
+          <div class="actions">
+            <button id="retryBtn">Retake Quiz ↻</button>
+            <button class="ghost" id="reviewBtn">Review Answers</button>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // ====== Question Bank (15 total) ======
+    const QUESTION_BANK = [
+      { q: "Which HTML element is used for the most important heading?",
+        options: ["<heading>", "<h6>", "<h1>", "<header>"], answer: 2,
+        explain: "<h1> represents the top-level heading; <h2>–<h6> are progressively less important.", category: "HTML" },
+      { q: "What does the 'alt' attribute on <img> provide?",
+        options: ["Image caption", "Alternative text for accessibility", "Image title tooltip", "Lazy loading"], answer: 1,
+        explain: "'alt' offers meaningful alternative text for screen readers and when the image fails to load.", category: "HTML" },
+      { q: "Which input type best captures a valid email address?",
+        options: ["type=\"text\"", "type=\"email\"", "type=\"url\"", "type=\"search\""], answer: 1,
+        explain: "<input type=\"email\"> enables basic validation and mobile email keyboards.", category: "HTML" },
+      { q: "Which tag semantically wraps site-wide navigation links?",
+        options: ["<menu>", "<nav>", "<aside>", "<section>"], answer: 1,
+        explain: "<nav> identifies primary navigation sections for assistive technologies.", category: "HTML" },
+      { q: "Which attribute makes a form control's value available when the form is submitted?",
+        options: ["for", "id", "name", "value"], answer: 2,
+        explain: "The 'name' attribute is the key used when form data is submitted.", category: "HTML" },
+      { q: "Which CSS property changes the stacking order along the z-axis?",
+        options: ["position", "display", "z-index", "opacity"], answer: 2,
+        explain: "'z-index' affects stacking context for positioned elements.", category: "CSS" },
+      { q: "What does 'flex: 1' generally mean in a flex item?",
+        options: ["Grow only", "Shrink only", "Grow and take available space", "No growth or shrink"], answer: 2,
+        explain: "'flex:1' is shorthand for flex-grow:1; flex-shrink:1; flex-basis:0%, sharing leftover space.", category: "CSS" },
+      { q: "Which unit scales with the root element's font size?",
+        options: ["em", "rem", "vh", "px"], answer: 1,
+        explain: "'rem' is based on the root font size, improving consistency across components.", category: "CSS" },
+      { q: "How do you center a block horizontally with modern CSS?",
+        options: ["left:50%", "margin: 0 auto", "text-align:center", "display:inline-block"], answer: 1,
+        explain: "For fixed-width blocks, 'margin: 0 auto' centers them within the parent.", category: "CSS" },
+      { q: "Which selector has the highest specificity among these?",
+        options: [".card .title", "#title", "header h1", "h1.title"], answer: 1,
+        explain: "An ID selector (#title) outranks class and type selectors.", category: "CSS" },
+      { q: "Which is NOT a primitive type in JavaScript?",
+        options: ["string", "object", "boolean", "number"], answer: 1,
+        explain: "'object' is a reference type; primitives include string, number, boolean, null, undefined, bigint, symbol.", category: "JavaScript" },
+      { q: "What does '===' do compared to '=='?",
+        options: ["Assigns a value", "Compares with type coercion", "Strict equality without type coercion", "Checks only types"], answer: 2,
+        explain: "'===' compares both value and type without coercion.", category: "JavaScript" },
+      { q: "How do you create a block-scoped variable?",
+        options: ["var count = 0", "let count = 0", "count := 0", "static count = 0"], answer: 1,
+        explain: "'let' (and 'const') create block-scoped bindings; 'var' is function-scoped.", category: "JavaScript" },
+      { q: "Which array method returns a new array with elements that pass a test?",
+        options: ["forEach", "map", "filter", "reduce"], answer: 2,
+        explain: "'filter' creates a new array including items where the callback returns true.", category: "JavaScript" },
+      { q: "What is the output of console.log(typeof NaN)?",
+        options: ["'number'", "'NaN'", "'undefined'", "'object'"], answer: 0,
+        explain: "In JS, NaN is a special numeric value; typeof NaN === 'number'.",
+        category: "JavaScript" }
+    ];
+
+    // ====== State ======
+    const TOTAL_QUESTIONS = 15;
+    let questions = [];
+    let index = 0;
+    let score = 0;
+    let categoryCount = { HTML:0, CSS:0, JavaScript:0 };
+    let answersLog = [];
+    let userAnswers = [];
+    let hasQuizStarted = false;
+    let isQuizFinished = false;
+    let reviewMode = false; // Track "review answers" mode
+
+    // ====== Elements ======
+    const startBtn = document.getElementById('startBtn');
+    const howBtn = document.getElementById('howBtn');
+    const howPanel = document.getElementById('how-panel');
+    const header = document.getElementById('header');
+    const quizEl = document.getElementById('quiz');
+    const questionText = document.getElementById('questionText');
+    const optionsEl = document.getElementById('options');
+    const feedbackEl = document.getElementById('feedback');
+    const nextBtn = document.getElementById('nextBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const qMeta = document.getElementById('qMeta');
+    const scorePill = document.getElementById('scorePill');
+    const progressBar = document.getElementById('progressBar');
+    const categoryTag = document.getElementById('categoryTag');
+    const startScreen = document.getElementById('start-screen');
+    const resultsEl = document.getElementById('results');
+    const finalScore = document.getElementById('finalScore');
+    const summaryPill = document.getElementById('summaryPill');
+    const breakdownEl = document.getElementById('breakdown');
+    const retryBtn = document.getElementById('retryBtn');
+    const reviewBtn = document.getElementById('reviewBtn');
+
+    // ====== Helpers ======
+    const shuffle = (arr) => arr.map(v => [Math.random(), v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
+
+    function initQuiz(){
+      questions = shuffle(QUESTION_BANK).slice(0, TOTAL_QUESTIONS);
+      index = 0; score = 0; answersLog = []; categoryCount = { HTML:0, CSS:0, JavaScript:0 };
+      userAnswers = new Array(TOTAL_QUESTIONS).fill(null);
+      hasQuizStarted = true;
+      isQuizFinished = false;
+      reviewMode = false;
+      resultsEl.classList.add('hidden');
+      quizEl.classList.remove('hidden');
+      nextBtn.disabled = true; prevBtn.disabled = true; feedbackEl.textContent = '';
+      header.classList.add('hidden'); // Hide quiz name/subtitle during quiz
+      updateMeta(); renderQuestion();
+      feedbackEl.className = 'feedback';
+    }
+
+    function updateMeta(){
+      qMeta.textContent = `Question ${index+1} of ${TOTAL_QUESTIONS}`;
+      scorePill.textContent = `Score: ${score}`;
+      progressBar.style.width = `${(index/TOTAL_QUESTIONS)*100}%`;
+      prevBtn.disabled = (index === 0);
+      // In review mode, next button is always enabled unless at last question
+      if(reviewMode){
+        nextBtn.disabled = (index === TOTAL_QUESTIONS-1);
+        prevBtn.disabled = (index === 0);
+      } else {
+        nextBtn.disabled = (userAnswers[index] === null);
+        prevBtn.disabled = (index === 0);
+      }
+    }
+
+    function renderQuestion(){
+      const q = questions[index];
+      questionText.innerHTML = q.q.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      categoryTag.textContent = `Category: ${q.category}`;
+      optionsEl.innerHTML = '';
+      feedbackEl.textContent = '';
+      feedbackEl.className = 'feedback';
+
+      // Add radio before option text
+      q.options.forEach((opt, i)=>{
+        const label = document.createElement('label');
+        label.className = 'opt';
+        label.setAttribute('tabindex', '0');
+        label.setAttribute('aria-label', `Option ${i+1}: ${opt}`);
+
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'option';
+        radio.value = i;
+        radio.disabled = isQuizFinished || reviewMode;
+        radio.checked = userAnswers[index] === i;
+        radio.onclick = ()=> handleAnswer(i);
+
+        label.appendChild(radio);
+        const span = document.createElement('span');
+        span.innerHTML = opt.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        label.appendChild(span);
+
+        // Highlight selection and correctness in review mode
+        if(reviewMode) {
+          if(i === q.answer) label.classList.add('correct');
+          if(i === userAnswers[index] && i !== q.answer) label.classList.add('wrong');
+          if(i === userAnswers[index]) label.classList.add('selected');
+        } else {
+          if(userAnswers[index] !== null && userAnswers[index] === i) {
+            label.classList.add('selected');
+          }
+        }
+        optionsEl.appendChild(label);
+      });
+
+      if(reviewMode) showReviewFeedback();
+      else if(isQuizFinished) showAnswerFeedback();
+    }
+
+    function handleAnswer(choice){
+      if(isQuizFinished || reviewMode) return;
+      userAnswers[index] = choice;
+      nextBtn.disabled = false;
+
+      [...optionsEl.children].forEach((label, i)=>{
+        label.classList.remove('selected');
+        if(i === choice) label.classList.add('selected');
+        label.children[0].checked = i === choice;
+      });
+
+      updateMeta();
+    }
+
+    function next(){
+      if(index < TOTAL_QUESTIONS-1){
+        index++;
+        renderQuestion();
+        updateMeta();
+      } else {
+        if(reviewMode) return; // Ignore finish in review mode
+        if(userAnswers.includes(null)) {
+          feedbackEl.className = 'feedback bad';
+          feedbackEl.textContent = 'Please answer all questions before finishing.';
+        } else {
+          finish();
+        }
+      }
+    }
+
+    function prev(){
+      if(index > 0){
+        index--;
+        renderQuestion();
+        updateMeta();
+      }
+    }
+
+    function finish(){
+      isQuizFinished = true;
+      // Calculate score and build logs
+      score = 0;
+      answersLog = [];
+      categoryCount = { HTML:0, CSS:0, JavaScript:0 };
+      for(let i=0; i<TOTAL_QUESTIONS; i++){
+        const q = questions[i];
+        const userIndex = userAnswers[i];
+        const correct = (userIndex === q.answer);
+        if(correct) score++;
+        answersLog.push({ q: q.q, userIndex, correctIndex: q.answer, correct, explain: q.explain, category: q.category, options: q.options });
+        categoryCount[q.category] += correct ? 1 : 0;
+      }
+
+      progressBar.style.width = '100%';
+      quizEl.classList.add('hidden');
+      resultsEl.classList.remove('hidden');
+      finalScore.textContent = `${score} / ${TOTAL_QUESTIONS}`;
+      const pct = Math.round((score/TOTAL_QUESTIONS)*100);
+      let msg = pct === 100 ? 'Perfect score! 🎉' : pct >= 80 ? 'Great job! 🙌' : pct >= 60 ? 'Nice effort! 👍' : 'Keep practicing! 💪';
+      summaryPill.textContent = `${msg} (${pct}%)`;
+      breakdownEl.innerHTML = '';
+      const totalByCat = { HTML:5, CSS:5, JavaScript:5 };
+      for(const cat of Object.keys(totalByCat)){
+        const el = document.createElement('div');
+        el.className = 'bd-card';
+        el.innerHTML = `<strong>${cat}</strong><br/>${categoryCount[cat]} / ${totalByCat[cat]} correct`;
+        breakdownEl.appendChild(el);
+      }
+      const best = Number(localStorage.getItem('bestScore')||0);
+      if(score > best){ localStorage.setItem('bestScore', String(score)); }
+    }
+
+    // Show correct/wrong answer and explanation for current question (after quiz)
+    function showAnswerFeedback(){
+      const q = questions[index];
+      const choice = userAnswers[index];
+      const correct = (choice === q.answer);
+
+      [...optionsEl.children].forEach((label, i)=>{
+        label.classList.remove('selected', 'correct', 'wrong');
+        label.children[0].checked = (userAnswers[index] === i);
+        label.children[0].disabled = true;
+        if(i === q.answer){ label.classList.add('correct'); }
+        if(i === choice && !correct){ label.classList.add('wrong'); }
+        if(i === choice && correct){ label.classList.add('correct'); }
+      });
+
+      if(choice === null){
+        feedbackEl.className = 'feedback bad';
+        feedbackEl.textContent = 'No answer selected.';
+      } else if(correct){
+        feedbackEl.className = 'feedback good';
+        feedbackEl.textContent = '✔ Correct! ' + q.explain;
+      } else {
+        feedbackEl.className = 'feedback bad';
+        feedbackEl.textContent = '✘ Not quite. ' + q.explain;
+      }
+    }
+
+    // In review mode, always show feedback for current question
+    function showReviewFeedback(){
+      const q = questions[index];
+      const choice = userAnswers[index];
+      const correct = (choice === q.answer);
+
+      if(choice === null){
+        feedbackEl.className = 'feedback bad';
+        feedbackEl.textContent = 'No answer selected.';
+      } else if(correct){
+        feedbackEl.className = 'feedback good';
+        feedbackEl.textContent = '✔ Correct! ' + q.explain;
+      } else {
+        feedbackEl.className = 'feedback bad';
+        feedbackEl.textContent = '✘ Not quite. ' + q.explain;
+      }
+    }
+
+    function escapeHTML(str){
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ====== Events ======
+    startBtn.addEventListener('click', ()=>{
+      startScreen.classList.add('hidden');
+      howPanel.classList.add('hidden');
+      initQuiz();
+    });
+    howBtn.addEventListener('click', ()=>{ howPanel.classList.toggle('hidden'); });
+    nextBtn.addEventListener('click', ()=>{
+      next();
+    });
+    prevBtn.addEventListener('click', prev);
+    retryBtn.addEventListener('click', ()=>{
+      startScreen.classList.remove('hidden');
+      resultsEl.classList.add('hidden');
+      header.classList.remove('hidden'); // Show quiz name/subtitle on start
+      initQuiz();
+    });
+    reviewBtn.addEventListener('click', ()=>{
+      // Enter review mode
+      reviewMode = true;
+      resultsEl.classList.add('hidden');
+      quizEl.classList.remove('hidden');
+      // Start at first question for review
+      index = 0;
+      renderQuestion();
+      updateMeta();
+    });
+  </script>
+</body>
+</html>
+
